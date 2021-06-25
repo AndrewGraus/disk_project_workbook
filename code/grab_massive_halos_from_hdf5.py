@@ -1,4 +1,4 @@
-import os
+import h5py, os
 import numpy as np
 
 #I'm doing something else here and grabbing the 
@@ -6,79 +6,113 @@ import numpy as np
 #in the merger tree for a reason that I don't understand
 #I'm hoping its because there very small halos are cut out
 
-#I think I need to revert to using the tree.dat file 
-
 a_target = 1.0/(1.0+3.0) #want to find halos near z=3
+h=0.6751
 
-for data_file in os.listdir('./disk_file_full/'):
+for data_file in os.listdir('./disk_files_full/'):
     halo_number = data_file.split('_')[1]
 
     print(data_file)
     
     #loading data
-    f = np.loadtxt('./full_mtrees/'+data_file+'/tree_0_0_0.dat',skiprows=46)
-
-    Mvir = f[:,10]
-    Rvir = f[:,11]
-    cens = f[:,17:19]
-    Vel = f[:,20:22]
-    Vmax = f[:,16]
-    ids_from_halo_cat = f[:,30]
-    #Tree_id = snap['TreeNumber'][:] #not sure what equivalent is in tree file
-    Tree_root_id = f[:,29]
-    scale = f[:,0]
-
-    print(np.unique(scale))
-
-    scale_select = np.unique(scale)[np.argmin(np.abs(np.unique(scale)-a_target))]
-    print('Looking for targets near {}'.format(scale_select))
-
-    print(np.min(Tree_root_id))
-
-    #Grab everything at that redshift that doesn't exist at z=0
-    destroyed_cat_three = (Tree_root_id==0.0)&(scale==scale_select)
-    everything_zero = (scale==1.0)
-    print('Total halos: {}, destroyed halos at z=3: {}'.format(len(Mvir),np.sum(destroyed_cat_three)))
-
-    cens_destroyed_three = cens[destroyed_cat_three]
-    Mvir_destroyed_three = Mvir[destroyed_cat_three]
-    vel_destroyed_three = Vel[destroyed_cat_three]
-    
-    Mvir_zero = Mvir[everything_zero]
-    Tree_root_id_zero = Tree_root_id[everything_zero]
-    
+    f = h5py.File('./disk_files_full/'+data_file)
+    #print f.keys()
+    snap = f['Snapshot00152']['HaloCatalog_RockstarMergerTree']
+    Mvir = snap['Mvir'][:]
+    Rvir = snap['Rvir'][:]
+    cens = snap['Center'][:]
+    Vmax = snap['Vmax'][:]
+    #Rmax = snap['Rmax'][:]
+    Vpeak = snap['Vpeak_TotalMass'][:]
+    ids_from_halo_cat = snap['Orig_halo_id'][:]
+    Tree_id = snap['TreeNumber'][:]
+    Tree_root_id = snap['Tree_root_id'][:]
+    scale = snap['Scale'][:]
+    Vel = snap['Velocity'][:]
 
     #now I need the most massive halo at z = 0
-    host_index = np.argmax(Mvir_zero)
-    host_tree_id = Tree_root_id_zero[host_index] #This is the id of the host tree
+    host_index = np.argmax(Mvir) #I'm assuming I can find the host by looking for the most massive thing in the entire tree (which should be the host at z=0
+    host_tree_id = Tree_id[host_index] #This is the id of the host tree
     print('host_id: {}'.format(host_tree_id))
+    #now grab the host
+    host_tree = f['RockstarMergerTrees']['Tree_'+str(host_tree_id)]
+    scale = host_tree['scale'][:]
+    mmp = host_tree['mmp?'][:]
+    Mvir_tree = host_tree['Mvir_all'][:]/h #Msun/h coverted to Msun
+    x,y,z = host_tree['x'][:]*1000.0/h,host_tree['y'][:]*1000.0/h,host_tree['z'][:]*1000.0/h #cMpc/h converted to ckpc
+    vx,vy,vz = host_tree['vx'][:],host_tree['vy'][:],host_tree['vz'][:]
+    Tree_root_id = host_tree['Tree_root_ID'][:]
+    rvir_tree = host_tree['rvir'][:]/h #ckpc/h converted to ckpc
+
+    #Now find the scale closest to 3
+    unique_scale = np.unique(scale)
+    scale_select = unique_scale[np.argmin(np.abs(unique_scale-a_target))]
+
+    #print(np.unique(mmp))
+    #find host at z=3
+    #mmp_three_mask = (mmp==1.0)&(scale==scale_select)
+    #print('halos in main branch at z=3: {}'.format(np.sum(mmp_three_mask)))
+    #mmp_mass = Mvir_tree[mmp_three_mask]
+    #mmp_x,mmp_y,mmp_z = x[mmp_three_mask]*scale_select,y[mmp_three_mask]*scale_select,z[mmp_three_mask]*scale_select
+    #mmp_vx,mmp_vy,mmp_vz = vx[mmp_three_mask],vy[mmp_three_mask],vz[mmp_three_mask]
+    #mmp_rvir = rvir_tree[mmp_three_mask]*scale_select
+
+    #everything from z=3 in the main tree
+    #I don't think I need anything from the tree_root_id because they are all by defintion destroyed by z=0 
+    #or they wouldn't be in the main branch
+    print(scale_select)
+    destroyed_three_mask = (scale==scale_select)
     
-    Host_tree_mask = (Tree_root_id==host_tree_id)&(scale==scale_select) #find everything in the host tree near z=3
-    #now grab positions, velocities and masses within that tree
+    print('halos at z=3 that are destroyed by z=0: {}'.format(np.sum(destroyed_three_mask)))
 
-    scale_host = scale[Host_tree_mask]
-    cen_host = cens[Host_tree_mask]
-    vel_host = Vel[Host_tree_mask]
-    Mvir_host = Mvir[Host_tree_mask]
-    Rvir_host = Rvir[Host_tree_mask]
-
-    #now I have everything at z=3 and the host at z=3
+    destroyed_three_mass = Mvir_tree[destroyed_three_mask]
+    destroyed_three_x, destroyed_three_y, destroyed_three_z = x[destroyed_three_mask]*scale_select,y[destroyed_three_mask]*scale_select,z[destroyed_three_mask]*scale_select
+    destroyed_three_vx, destroyed_three_vy, destroyed_three_vz = vx[destroyed_three_mask],vy[destroyed_three_mask],vz[destroyed_three_mask]
+    three_rvir = rvir_tree[destroyed_three_mask]*scale_select
     
-    halo_cen_diff_three = cens_destroyed_three - cen_host
-    halo_vel_diff_three = vel_destroyed_three - vel_host
-    halo_dist_three = np.linalg.norm(sat_cen_diff_three)
+    sorted_masses_three = np.sort(destroyed_three_mass)/1.0e11
 
-    sat_three_mask = (halo_dist_three<Rvir_host)
+    print('Most massive halo {}, second most massive {}'.format(sorted_masses_three[-1],sorted_masses_three[-2]))
 
-    sat_mass_three = Mvir_destroyed_three[sat_three_mask]
-    sat_cen_three = cen_destroyed_three[sat_three_mask]
-    sat_vel_three = vel_destroyed_three[sat_three_mask]
-
-    sat_ids_ten_largest = np.argsort(sat_mass_three)[::-1][:10]
+    #Find the most massive halo
+    host_halo = np.argmax(destroyed_three_mass)
+    mmp_mass = destroyed_three_mass[host_halo]
+    mmp_x,mmp_y,mmp_z = destroyed_three_x[host_halo],destroyed_three_y[host_halo],destroyed_three_z[host_halo]
+    mmp_vx,mmp_vy,mmp_vz = destroyed_three_vx[host_halo],destroyed_three_vy[host_halo],destroyed_three_vz[host_halo]
+    mmp_rvir = three_rvir[host_halo]
     
-    sat_mass_ten = sat_mass_three[sat_ids_ten_largest]
-    sat_cen_ten = sat_cen_three[sat_ids_ten_largest]
-    sat_vel_ten = sat_vel_three[sat_ids_ten_largest]
+
+    #now make sure it's a satellite at z=3
+    x_diff,y_diff,z_diff = destroyed_three_x-mmp_x,destroyed_three_y-mmp_y,destroyed_three_z-mmp_z
+    vx_diff,vy_diff,vz_diff = destroyed_three_vx-mmp_vx,destroyed_three_vy-mmp_vy,destroyed_three_vz-mmp_vz
+
+    dist = np.sqrt(x_diff**2.0+y_diff**2.0+z_diff**2.0)
+    dist_mask = (dist<mmp_rvir)&(dist>0.0)
+    print('host Rvir at z=3: {} kpc'.format(mmp_rvir))
+    print('destroyed satellites present at z=3: {}'.format(np.sum(dist_mask)))
+    #everything that is a satellite
+    destroyed_sat_three_mass = destroyed_three_mass[dist_mask]
+    destroyed_sat_three_x, destroyed_sat_three_y, destroyed_sat_three_z = destroyed_three_x[dist_mask], destroyed_three_y[dist_mask], destroyed_three_z[dist_mask]
+    destroyed_sat_three_vx, destroyed_sat_three_vy, destroyed_sat_three_vz = destroyed_three_vx[dist_mask], destroyed_three_vy[dist_mask], destroyed_three_vz[dist_mask]
+    destroyed_sat_dist = dist[dist_mask]
+
+    #grab the top ten (will there even be ten after all the cuts?)
+    top_ten_mask = np.argsort(destroyed_sat_three_mass)[::-1][:10]
+    top_ten_mass = destroyed_sat_three_mass[top_ten_mask]
+    top_ten_x, top_ten_y, top_ten_z = destroyed_sat_three_x[top_ten_mask]-mmp_x, destroyed_sat_three_y[top_ten_mask]-mmp_y, destroyed_sat_three_z[top_ten_mask]-mmp_z
+    top_ten_vx, top_ten_vy, top_ten_vz = destroyed_sat_three_vx[top_ten_mask]-mmp_vx, destroyed_sat_three_vy[top_ten_mask]-mmp_vy, destroyed_sat_three_vz[top_ten_mask]-mmp_vz
+    top_ten_dist = destroyed_sat_dist[top_ten_mask]
+
+    print(top_ten_dist)
+    #Okay this works, now I just need to do a few tests and package it up
+
+    f_out = np.zeros((10,7))
+    f_out[:,0] = top_ten_mass
+    f_out[:,1] = top_ten_x
+    f_out[:,2] = top_ten_y
+    f_out[:,3] = top_ten_z
+    f_out[:,4] = top_ten_vx
+    f_out[:,5] = top_ten_vy
+    f_out[:,6] = top_ten_vz
     
-    top_ten_array = np.hstack((sat_mass_ten,sat_cen_ten,sat_vel_ten))
-    np.savetxt('./top_ten_{}.txt'.format(data_file),top_ten_array)
+    np.savetxt('./top_ten_files/top_ten_h'+str(halo_number)+'.txt',f_out,header='# halo: {}, host mass at z = 3: {}*1.0e10 Msun, host Rvir at z = 3: {} kpc \n#Mvir (Msun) x (kpc), y(kpc), z(kpc), vx (kms^-1), vy (kms^-1), vz (kms^-1)'.format(halo_number,mmp_mass/1.0e10,mmp_rvir))
