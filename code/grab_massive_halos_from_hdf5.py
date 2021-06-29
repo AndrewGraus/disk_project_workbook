@@ -43,6 +43,7 @@ for data_file in os.listdir('./disk_files_full/'):
     vx,vy,vz = host_tree['vx'][:],host_tree['vy'][:],host_tree['vz'][:]
     Tree_root_id = host_tree['Tree_root_ID'][:]
     rvir_tree = host_tree['rvir'][:]/h #ckpc/h converted to ckpc
+    rs_tree = host_tree['rs'][:]/h #ckpc/h converted to ckpc
 
     #Now find the scale closest to 3
     unique_scale = np.unique(scale)
@@ -69,6 +70,7 @@ for data_file in os.listdir('./disk_files_full/'):
     destroyed_three_x, destroyed_three_y, destroyed_three_z = x[destroyed_three_mask]*scale_select,y[destroyed_three_mask]*scale_select,z[destroyed_three_mask]*scale_select
     destroyed_three_vx, destroyed_three_vy, destroyed_three_vz = vx[destroyed_three_mask],vy[destroyed_three_mask],vz[destroyed_three_mask]
     three_rvir = rvir_tree[destroyed_three_mask]*scale_select
+    three_rs = rs_tree[destroyed_three_mask]*scale_select
     
     sorted_masses_three = np.sort(destroyed_three_mass)/1.0e11
 
@@ -80,6 +82,7 @@ for data_file in os.listdir('./disk_files_full/'):
     mmp_x,mmp_y,mmp_z = destroyed_three_x[host_halo],destroyed_three_y[host_halo],destroyed_three_z[host_halo]
     mmp_vx,mmp_vy,mmp_vz = destroyed_three_vx[host_halo],destroyed_three_vy[host_halo],destroyed_three_vz[host_halo]
     mmp_rvir = three_rvir[host_halo]
+    mmp_rs = three_rs[host_halo]
     
 
     #now make sure it's a satellite at z=3
@@ -95,6 +98,8 @@ for data_file in os.listdir('./disk_files_full/'):
     destroyed_sat_three_x, destroyed_sat_three_y, destroyed_sat_three_z = destroyed_three_x[dist_mask], destroyed_three_y[dist_mask], destroyed_three_z[dist_mask]
     destroyed_sat_three_vx, destroyed_sat_three_vy, destroyed_sat_three_vz = destroyed_three_vx[dist_mask], destroyed_three_vy[dist_mask], destroyed_three_vz[dist_mask]
     destroyed_sat_dist = dist[dist_mask]
+    destroyed_sat_rvir = three_rvir[dist_mask]
+    destroyed_sat_rs = three_rs[dist_mask]
 
     #grab the top ten (will there even be ten after all the cuts?)
     top_ten_mask = np.argsort(destroyed_sat_three_mass)[::-1][:10]
@@ -102,11 +107,13 @@ for data_file in os.listdir('./disk_files_full/'):
     top_ten_x, top_ten_y, top_ten_z = destroyed_sat_three_x[top_ten_mask]-mmp_x, destroyed_sat_three_y[top_ten_mask]-mmp_y, destroyed_sat_three_z[top_ten_mask]-mmp_z
     top_ten_vx, top_ten_vy, top_ten_vz = destroyed_sat_three_vx[top_ten_mask]-mmp_vx, destroyed_sat_three_vy[top_ten_mask]-mmp_vy, destroyed_sat_three_vz[top_ten_mask]-mmp_vz
     top_ten_dist = destroyed_sat_dist[top_ten_mask]
+    top_ten_rvir = destroyed_sat_rvir[top_ten_mask]
+    top_ten_rs = destroyed_sat_rs[top_ten_mask]
 
     print(top_ten_dist)
     #Okay this works, now I just need to do a few tests and package it up
 
-    f_out = np.zeros((10,7))
+    f_out = np.zeros((10,9))
     f_out[:,0] = top_ten_mass
     f_out[:,1] = top_ten_x
     f_out[:,2] = top_ten_y
@@ -114,5 +121,7 @@ for data_file in os.listdir('./disk_files_full/'):
     f_out[:,4] = top_ten_vx
     f_out[:,5] = top_ten_vy
     f_out[:,6] = top_ten_vz
+    f_out[:,7] = top_ten_rvir
+    f_out[:,8] = top_ten_rs
     
-    np.savetxt('./top_ten_files/top_ten_h'+str(halo_number)+'.txt',f_out,header='# halo: {}, host mass at z = 3: {}*1.0e10 Msun, host Rvir at z = 3: {} kpc \n#Mvir (Msun) x (kpc), y(kpc), z(kpc), vx (kms^-1), vy (kms^-1), vz (kms^-1)'.format(halo_number,mmp_mass/1.0e10,mmp_rvir))
+    np.savetxt('./top_ten_files/top_ten_h'+str(halo_number)+'.txt',f_out,header='# halo: {}, host mass at z = 3: {}*1.0e10 Msun, host Rvir at z = 3: {} kpc, host Rs at z = 3 {} \n#Mvir (Msun) x (kpc), y(kpc), z(kpc), vx (kms^-1), vy (kms^-1), vz (kms^-1), Rvir (kpc), Rs (kpc)'.format(halo_number,mmp_mass/1.0e10,mmp_rvir,mmp_rs))
