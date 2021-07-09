@@ -9,15 +9,33 @@ import numpy as np
 a_target = 1.0/(1.0+3.0) #want to find halos near z=3
 h=0.6751
 
-for data_file in os.listdir('./disk_files_full/'):
-    halo_number = data_file.split('_')[1]
+sim_type = 'dmo'
+
+if sim_type == 'dmo':
+    halo_dir = './dmo_files_full'
+    snap_loc = 'Snapshot00152'
+    output_dir = 'top_ten_files_dmo'
+    tree_dir = 'dmo_files_full'
+elif sim_type == 'disk':
+    halo_dir = './disk_file_full'
+    snap_loc = 'Snapshot000152'
+    output_dir = 'top_ten_files'
+    tree_dir = 'disk_files_full'
+    rvir_param = 'rvir'
+
+for data_file in os.listdir(halo_dir):
+    if sim_type == 'dmo':
+        halo_number = data_file.split('_')[2]
+    else:
+        halo_number = data_file.split('_')[1]
 
     print(data_file)
     
     #loading data
-    f = h5py.File('./disk_files_full/'+data_file)
+    f = h5py.File('./'+tree_dir+'/'+data_file)
     #print f.keys()
-    snap = f['Snapshot00152']['HaloCatalog_RockstarMergerTree']
+
+    snap = f[snap_loc]['HaloCatalog_RockstarMergerTree']
     Mvir = snap['Mvir'][:]
     Rvir = snap['Rvir'][:]
     cens = snap['Center'][:]
@@ -42,21 +60,16 @@ for data_file in os.listdir('./disk_files_full/'):
     x,y,z = host_tree['x'][:]*1000.0/h,host_tree['y'][:]*1000.0/h,host_tree['z'][:]*1000.0/h #cMpc/h converted to ckpc
     vx,vy,vz = host_tree['vx'][:],host_tree['vy'][:],host_tree['vz'][:]
     Tree_root_id = host_tree['Tree_root_ID'][:]
-    rvir_tree = host_tree['rvir'][:]/h #ckpc/h converted to ckpc
+    #annoyingly sometimes rvir is Rvir and other times it's rvir so I guess I'll do a try
+    try:
+        rvir_tree = host_tree['rvir'][:]/h #ckpc/h converted to ckpc
+    except KeyError:
+        rvir_tree = host_tree['Rvir'][:]/h #ckpc/h converted to ckpc
     rs_tree = host_tree['rs'][:]/h #ckpc/h converted to ckpc
 
     #Now find the scale closest to 3
     unique_scale = np.unique(scale)
     scale_select = unique_scale[np.argmin(np.abs(unique_scale-a_target))]
-
-    #print(np.unique(mmp))
-    #find host at z=3
-    #mmp_three_mask = (mmp==1.0)&(scale==scale_select)
-    #print('halos in main branch at z=3: {}'.format(np.sum(mmp_three_mask)))
-    #mmp_mass = Mvir_tree[mmp_three_mask]
-    #mmp_x,mmp_y,mmp_z = x[mmp_three_mask]*scale_select,y[mmp_three_mask]*scale_select,z[mmp_three_mask]*scale_select
-    #mmp_vx,mmp_vy,mmp_vz = vx[mmp_three_mask],vy[mmp_three_mask],vz[mmp_three_mask]
-    #mmp_rvir = rvir_tree[mmp_three_mask]*scale_select
 
     #everything from z=3 in the main tree
     #I don't think I need anything from the tree_root_id because they are all by defintion destroyed by z=0 
@@ -124,4 +137,4 @@ for data_file in os.listdir('./disk_files_full/'):
     f_out[:,7] = top_ten_rvir
     f_out[:,8] = top_ten_rs
     
-    np.savetxt('./top_ten_files/top_ten_h'+str(halo_number)+'.txt',f_out,header='# halo: {}, host mass at z = 3: {}*1.0e10 Msun, host Rvir at z = 3: {} kpc, host Rs at z = 3 {} \n#Mvir (Msun) x (kpc), y(kpc), z(kpc), vx (kms^-1), vy (kms^-1), vz (kms^-1), Rvir (kpc), Rs (kpc)'.format(halo_number,mmp_mass/1.0e10,mmp_rvir,mmp_rs))
+    np.savetxt('./'+output_dir+'/top_ten_'+str(halo_number)+'_'+sim_type+'.txt',f_out,header='# halo: {}, host mass at z = 3: {}*1.0e10 Msun, host Rvir at z = 3: {} kpc, host Rs at z = 3 {} \n#Mvir (Msun) x (kpc), y(kpc), z(kpc), vx (kms^-1), vy (kms^-1), vz (kms^-1), Rvir (kpc), Rs (kpc)'.format(halo_number,mmp_mass/1.0e10,mmp_rvir,mmp_rs))
